@@ -1,6 +1,5 @@
 import tkinter
 import os
-from datetime import datetime
 
 
 index_to_month = {
@@ -32,6 +31,13 @@ month_to_index = {
         "Décembre": 12
     }
 
+
+class ThisFileIsNotAnArchive(Exception):
+    def __init__(self):
+        super().__init__("This file is not a WhatsApp archive, if there is one but our program does not detect it, "
+                         "check that the first lines of the archive are conversations and not simple text. Please "
+                         "forgive us if our program is wrong.")
+    
 
 def cut_entire_file_to_message_list(entire_data):
     messages = []
@@ -89,28 +95,31 @@ def cut_entire_file_to_message_list(entire_data):
                 messages.append(message)
                 message = ''
             message += character
-
+    else:
+        raise ThisFileIsNotAnArchive
     return messages_dict
 
 
 class DataTools:
-    def __init__(self, root=r'./'):
+    def __init__(self, root=r'./data'):
         self.data_path = root
         self.datas = {}
         self.users = []
         self.load_data()
 
     def load_data(self):
-        data = {}
         for file_name in os.listdir(self.data_path):
-            if file_name[-4:] == '.txt' and file_name[:5] == '_chat':
-                with open(f'{self.data_path}/{file_name}') as file:
+            if file_name[-4:] == '.txt':
+                with (open(f'{self.data_path}/{file_name}') as file):
                     file_content = file.read()
-                    conv = cut_entire_file_to_message_list(file_content)
-                    self.datas[' - '.join(self.get_users(conv))] = conv
+                    try:
+                        conv = cut_entire_file_to_message_list(file_content)
+                    except ThisFileIsNotAnArchive:
+                        pass
+                    else:
+                        self.datas[' - '.join(self.get_users(conv))] = conv
 
                     file.close()
-        return data
 
     def get_users(self, data_dict):
         users = []
@@ -126,8 +135,14 @@ class DataTools:
 
 
 class WhatsAppConv(tkinter.Tk):
+    max_length_character = 63
+    text_size = 10
+    font = 'Comics Sans MS'
+
     width = 440
     height = 800
+
+    user_names = ['Nikitas', 'Nikitas Giakkoupis']
 
     def __init__(self):
         super().__init__()
@@ -162,31 +177,67 @@ class WhatsAppConv(tkinter.Tk):
         self.load_message()
 
     def load_message(self):
-        try:
-            self.chat.interior.destroy()
-            self.chat.interior = tkinter.Frame(self)
-            self.chat.interior_id = self.chat.create_window(0, 0, window=self.chat.interior, anchor=tkinter.NW)
 
-            for item in self.tools.datas[self.tools.users[self.current_user_index]]:
+        self.chat.interior.destroy()
+        self.chat.interior = tkinter.Frame(self, width=500)
+        self.chat.interior_id = self.chat.create_window(0, 0, window=self.chat.interior, anchor=tkinter.NW)
 
-                if self.current_month < 10:
-                    temporary_month_variable = f'0{self.current_month}'
+        for item in self.tools.datas[self.tools.users[self.current_user_index]]:
+
+            if self.current_month < 10:
+                temporary_month_variable = f'0{self.current_month}'
+            else:
+                temporary_month_variable = self.current_month
+
+            if item['date'][3:] == f'{temporary_month_variable}/{self.current_year}':
+                message = Message(self, self.chat.interior, item)
+                if message.sender in self.user_names:
+                    message.pack(anchor='ne')
                 else:
-                    temporary_month_variable = self.current_month
-
-                if item['date'][3:] == f'{temporary_month_variable}/{self.current_year}':
-                    if item['sender'] == 'Nikitas':
-                        button = tkinter.Button(self.chat.interior, text=item['content'], fg='blue', wraplength=440)
-                        button.pack(side=tkinter.TOP, anchor='e')
-                    else:
-                        button = tkinter.Button(self.chat.interior, text=item["sender"] + " " + item['content'], fg='green',
-                                           wraplength=440)
-                        button.pack(side=tkinter.TOP, anchor='w')
-        except Exception as e:
-            print(e)
+                    message.pack(anchor='nw')
 
     def run(self):
         self.mainloop()
+
+
+class Message(tkinter.LabelFrame):
+    def __init__(self, parent: WhatsAppConv, frame, message_information):
+        self.parent = parent
+        self.sender = message_information['sender']
+        self.color = 'green' if self.sender in self.parent.user_names else 'blue'
+        justify = 'right' if self.sender in self.parent.user_names else 'left'
+
+        super().__init__(frame, text=f'{self.sender}', fg=self.color, font=(self.parent.font, self.parent.text_size - 3))
+
+        self.content = message_information['content']
+        self.content = self.content
+        new_message = ''
+        if len(self.content) > self.parent.max_length_character:
+            new_message = ''
+            index = 0
+            for character in self.content:
+                new_message += character
+                index += 1
+                if index == self.parent.max_length_character:
+                    new_message += '\n'
+                    index = 0
+        self.label = tkinter.Label(self, text=new_message if new_message != '' else self.content[:-1],
+                                   font=(self.parent.font, self.parent.text_size), justify=justify)
+        self.label.pack()
+
+
+"""class Message(tkinter.LabelFrame):
+    def __init__(self, parent: tkinter.Frame, message_information_dict):
+        self.parent = parent
+
+        self.sender = message_information_dict['sender']
+        self.date = self.sender = message_information_dict['date']
+        self.time = self.sender = message_information_dict['time']
+        self.content = message_information_dict['content']
+
+        self.color = 'green'
+        
+        super().__init__(parent, text=self.sender, bg=self.color)"""
 
 
 class ToolsBar(tkinter.Frame):
@@ -260,12 +311,23 @@ class ChatScreen(tkinter.Canvas):
     def __init__(self, parent: WhatsAppConv):
         super().__init__(parent, bg='red', height=800)
         self.parent = parent
+
+        self.interior = tkinter.Frame(self)
+        self.interior_id = self.create_window(0, 0, window=self.interior, anchor=tkinter.NW)
         self.scrollbar = tkinter.Scrollbar(self.parent, orient=tkinter.VERTICAL, command=self.yview)
         self.scrollbar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
 
         self.configure(yscrollcommand=self.scrollbar.set)
-        self.interior = tkinter.Frame(self)
-        self.interior_id = self.create_window(0, 0, window=self.interior, anchor=tkinter.NW)
+        self.bind("<Configure>", self.resize_canvas)
+        self.interior.pack(fill=tkinter.BOTH)
+
+    def configure_interior(self, event):
+        self.configure(scrollregion=self.bbox("all"))
+
+    def resize_canvas(self, event):
+        self.config(scrollregion=self.bbox("all"), width=450, height=800)
+
+
 
 
 if __name__ == '__main__':
