@@ -94,7 +94,7 @@ def cut_entire_file_to_message_list(entire_data):
 
 
 class DataTools:
-    def __init__(self, root=r'./data'):
+    def __init__(self, root=r'./'):
         self.data_path = root
         self.datas = {}
         self.users = []
