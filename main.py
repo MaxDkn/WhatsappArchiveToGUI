@@ -1,3 +1,5 @@
+from tkinter.filedialog import *
+from tkinter import messagebox
 import tkinter
 import os
 
@@ -120,6 +122,22 @@ class DataTools:
                         self.datas[' - '.join(self.get_users(conv))] = conv
 
                     file.close()
+        while len(self.datas) == 0:
+            filepath = askopenfilename(title="Load Archive files", filetypes=[('archive file', '.txt')])
+
+            #  If the window is closed
+            if filepath == ():
+                exit()
+            with (open(f'{filepath}') as file):
+                file_content = file.read()
+                try:
+                    conv = cut_entire_file_to_message_list(file_content)
+                except ThisFileIsNotAnArchive as e:
+                    messagebox.showerror('ThisFileIsNotAnArchive', e)
+                else:
+                    self.datas[' - '.join(self.get_users(conv))] = conv
+
+                file.close()
 
     def get_users(self, data_dict):
         users = []
@@ -135,7 +153,7 @@ class DataTools:
 
 
 class WhatsAppConv(tkinter.Tk):
-    max_length_character = 63
+    max_length_character = 60
     text_size = 10
     font = 'Comics Sans MS'
 
@@ -144,7 +162,7 @@ class WhatsAppConv(tkinter.Tk):
 
     user_names = ['Nikitas', 'Nikitas Giakkoupis']
 
-    def __init__(self):
+    def __init__(self, data_method: DataTools = DataTools()):
         super().__init__()
         self.current_index_conv = 0
         self.current_month = 10
@@ -152,7 +170,7 @@ class WhatsAppConv(tkinter.Tk):
         self.current_user_index = 0
         self.current_mode = 'datetime'
 
-        self.tools = DataTools()
+        self.tools = data_method
 
         self.geometry(f'{self.height}x{self.height}')
         self.maxsize(self.width, self.height)
@@ -164,11 +182,6 @@ class WhatsAppConv(tkinter.Tk):
         self.load_message()
         self.chat.pack(fill=tkinter.BOTH)
         self.bind('<Control-r>', self.goes_to_the_top_of_the_conv)
-
-        #  self.tools_bar = ToolsBar(self)
-        #  self.tools_bar.pack()
-        #  self.chat_view = ChatScreen(self)
-        #  self.chat_view.pack()
 
     def goes_to_the_top_of_the_conv(self, event):
         self.current_month = int((self.tools.datas[self.tools.users[self.current_user_index]][0]['date'].split('/'))[1])
@@ -208,7 +221,7 @@ class Message(tkinter.LabelFrame):
         justify = 'right' if self.sender in self.parent.user_names else 'left'
 
         super().__init__(frame, text=f'{self.sender}', fg=self.color, font=(self.parent.font, self.parent.text_size - 3))
-
+        self['labelanchor'] = 'ne' if self.sender in self.parent.user_names else 'nw'
         self.content = message_information['content']
         self.content = self.content
         new_message = ''
@@ -224,20 +237,6 @@ class Message(tkinter.LabelFrame):
         self.label = tkinter.Label(self, text=new_message if new_message != '' else self.content[:-1],
                                    font=(self.parent.font, self.parent.text_size), justify=justify)
         self.label.pack()
-
-
-"""class Message(tkinter.LabelFrame):
-    def __init__(self, parent: tkinter.Frame, message_information_dict):
-        self.parent = parent
-
-        self.sender = message_information_dict['sender']
-        self.date = self.sender = message_information_dict['date']
-        self.time = self.sender = message_information_dict['time']
-        self.content = message_information_dict['content']
-
-        self.color = 'green'
-        
-        super().__init__(parent, text=self.sender, bg=self.color)"""
 
 
 class ToolsBar(tkinter.Frame):
@@ -328,7 +327,5 @@ class ChatScreen(tkinter.Canvas):
         self.config(scrollregion=self.bbox("all"), width=450, height=800)
 
 
-
-
 if __name__ == '__main__':
-    WhatsAppConv().run()
+    WhatsAppConv(DataTools('./')).run()
